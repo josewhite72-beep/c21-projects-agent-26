@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>C21 Diagnostic Tool</title>
+<style>
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: system-ui, -apple-system, sans-serif;
+    background: #f7fafc;
+    padding: 20px;
+}
+
+.header {
+    background: linear-gradient(135deg, #1a365d 0%, #2c5282 100%);
+    color: white;
+    padding: 20px;
+    border-radius: 12px;
+    margin-bottom: 20px;
+}
+
+.card {
+    background: white;
+    border-radius: 12px;
+    padding: 20px;
+    margin-bottom: 15px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+.grade-btn {
+    background: #4a90e2;
+    color: white;
+    border: none;
+    padding: 15px;
+    border-radius: 8px;
+    width: 100%;
+    margin: 5px 0;
+    font-size: 16px;
+    cursor: pointer;
+}
+
+.grade-btn:active {
+    background: #2c5282;
+}
+
+.status {
+    padding: 10px;
+    border-radius: 6px;
+    margin: 10px 0;
+    font-size: 14px;
+}
+
+.success {
+    background: #c6f6d5;
+    color: #22543d;
+    border-left: 4px solid #38a169;
+}
+
+.error {
+    background: #fed7d7;
+    color: #742a2a;
+    border-left: 4px solid #e53e3e;
+}
+
+.warning {
+    background: #feebc8;
+    color: #7c2d12;
+    border-left: 4px solid #ed8936;
+}
+
+.info {
+    background: #bee3f8;
+    color: #1a365d;
+    border-left: 4px solid #4a90e2;
+}
+
+pre {
+    background: #2d3748;
+    color: #e2e8f0;
+    padding: 15px;
+    border-radius: 6px;
+    overflow-x: auto;
+    font-size: 12px;
+    margin: 10px 0;
+}
+
+.loading {
+    text-align: center;
+    padding: 20px;
+    color: #718096;
+}
+
+h3 {
+    margin-bottom: 15px;
+    color: #2d3748;
+}
+
+.scenario-box {
+    background: #edf2f7;
+    padding: 12px;
+    border-radius: 6px;
+    margin: 8px 0;
+    border-left: 3px solid #4a90e2;
+}
+
+.project-item {
+    background: white;
+    padding: 8px 12px;
+    margin: 5px 0;
+    border-radius: 4px;
+    font-size: 14px;
+}
+</style>
+</head>
+<body>
+
+<div class="header">
+    <h1>🔍 C21 Diagnostic</h1>
+    <p>Diagnóstico de Proyectos</p>
+</div>
+
+<div class="card">
+    <h3>Selecciona un Grado para Diagnosticar</h3>
+    <button class="grade-btn" onclick="diagnoseGrade('pre_k')">Pre-K</button>
+    <button class="grade-btn" onclick="diagnoseGrade('kinder')">Kinder</button>
+    <button class="grade-btn" onclick="diagnoseGrade('1')">Grade 1</button>
+    <button class="grade-btn" onclick="diagnoseGrade('2')">Grade 2</button>
+    <button class="grade-btn" onclick="diagnoseGrade('3')">Grade 3</button>
+    <button class="grade-btn" onclick="diagnoseGrade('4')">Grade 4</button>
+    <button class="grade-btn" onclick="diagnoseGrade('5')">Grade 5</button>
+    <button class="grade-btn" onclick="diagnoseGrade('6')">Grade 6</button>
+</div>
+
+<div id="results"></div>
+
+<script>
+async function diagnoseGrade(grade) {
+    const results = document.getElementById('results');
+    results.innerHTML = '<div class="loading">⏳ Analizando...</div>';
+    
+    const report = {
+        grade: grade,
+        fileExists: false,
+        jsonValid: false,
+        hasScenarios: false,
+        scenarioCount: 0,
+        projectCount: 0,
+        scenarios: [],
+        errors: [],
+        rawData: null
+    };
+    
+    try {
+        // Intentar cargar el archivo
+        const filename = `data/grade_${grade}.json`;
+        const response = await fetch(filename);
+        
+        if (!response.ok) {
+            report.errors.push(`❌ No se pudo cargar: ${filename}`);
+            report.errors.push(`   Error HTTP: ${response.status} ${response.statusText}`);
+            displayReport(report);
+            return;
+        }
+        
+        report.fileExists = true;
+        
+        // Intentar parsear JSON
+        const text = await response.text();
+        let data;
+        
+        try {
+            data = JSON.parse(text);
+            report.jsonValid = true;
+            report.rawData = data;
+        } catch (e) {
+            report.errors.push(`❌ JSON inválido: ${e.message}`);
+            displayReport(report);
+            return;
+        }
+        
+        // Verificar estructura
+        if (!data.scenarios) {
+            report.errors.push('❌ No existe el campo "scenarios"');
+            displayReport(report);
+            return;
+        }
+        
+        if (!Array.isArray(data.scenarios)) {
+            report.errors.push('❌ "scenarios" no es un array');
+            displayReport(report);
+            return;
+        }
+        
+        report.hasScenarios = true;
+        report.scenarioCount = data.scenarios.length;
+        
+        // Analizar cada escenario
+        data.scenarios.forEach((scenario, idx) => {
+            const scenarioInfo = {
+                index: idx,
+                title: scenario.title || `(Sin título)`,
+                themeCount: scenario.themes ? scenario.themes.length : 0,
+                themes: scenario.themes || [],
+                hasProjects: false,
+                projectCount: 0,
+                projects: [],
+                issues: []
+            };
+            
+            // Verificar proyectos
+            if (!scenario.projects) {
+                scenarioInfo.issues.push('❌ Falta campo "projects"');
+            } else if (!Array.isArray(scenario.projects)) {
+                scenarioInfo.issues.push('❌ "projects" no es array');
+            } else if (scenario.projects.length === 0) {
+                scenarioInfo.issues.push('⚠️ Array "projects" vacío');
+            } else {
+                scenarioInfo.hasProjects = true;
+                scenarioInfo.projectCount = scenario.projects.length;
+                report.projectCount += scenario.projects.length;
+                
+                scenario.projects.forEach(p => {
+                    scenarioInfo.projects.push({
+                        id: p.id || '(sin ID)',
+                        name: p.name || '(sin nombre)',
+                        objective: p.objective ? p.objective.substring(0, 60) + '...' : '(sin objetivo)'
+                    });
+                });
+            }
+            
+            report.scenarios.push(scenarioInfo);
+        });
+        
+    } catch (error) {
+        report.errors.push(`❌ Error inesperado: ${error.message}`);
+    }
+    
+    displayReport(report);
+}
+
+function displayReport(report) {
+    const results = document.getElementById('results');
+    let html = '';
+    
+    // Resumen general
+    html += '<div class="card">';
+    html += `<h3>📊 Diagnóstico: Grade ${report.grade.toUpperCase()}</h3>`;
+    
+    if (report.fileExists) {
+        html += '<div class="status success">✅ Archivo JSON encontrado</div>';
+    } else {
+        html += '<div class="status error">❌ Archivo JSON NO encontrado</div>';
+    }
+    
+    if (report.jsonValid) {
+        html += '<div class="status success">✅ JSON válido</div>';
+    }
+    
+    if (report.hasScenarios) {
+        html += `<div class="status success">✅ ${report.scenarioCount} escenarios encontrados</div>`;
+        html += `<div class="status ${report.projectCount > 0 ? 'success' : 'error'}">`;
+        html += `${report.projectCount > 0 ? '✅' : '❌'} ${report.projectCount} proyectos totales</div>`;
+    }
+    
+    // Errores
+    if (report.errors.length > 0) {
+        html += '<h4 style="color: #e53e3e; margin-top: 20px;">🚨 Errores Encontrados:</h4>';
+        report.errors.forEach(err => {
+            html += `<div class="status error">${err}</div>`;
+        });
+    }
+    
+    html += '</div>';
+    
+    // Detalles de escenarios
+    if (report.scenarios.length > 0) {
+        html += '<div class="card">';
+        html += '<h3>📋 Detalles por Escenario:</h3>';
+        
+        report.scenarios.forEach(scenario => {
+            html += '<div class="scenario-box">';
+            html += `<strong>📌 ${scenario.title}</strong><br>`;
+            html += `Temas: ${scenario.themeCount} | Proyectos: ${scenario.projectCount}<br>`;
+            
+            if (scenario.themes.length > 0) {
+                html += `<small style="color: #4a5568;">Temas: ${scenario.themes.join(', ')}</small><br>`;
+            }
+            
+            if (scenario.issues.length > 0) {
+                scenario.issues.forEach(issue => {
+                    html += `<div class="status ${issue.includes('❌') ? 'error' : 'warning'}" style="margin-top: 8px;">${issue}</div>`;
+                });
+            }
+            
+            if (scenario.projects.length > 0) {
+                html += '<div style="margin-top: 10px;"><strong>Proyectos:</strong></div>';
+                scenario.projects.forEach(p => {
+                    html += `<div class="project-item">`;
+                    html += `<strong>${p.name}</strong><br>`;
+                    html += `<small style="color: #718096;">ID: ${p.id}</small>`;
+                    html += `</div>`;
+                });
+            }
+            
+            html += '</div>';
+        });
+        
+        html += '</div>';
+    }
+    
+    // JSON raw (para debugging avanzado)
+    if (report.rawData && report.scenarioCount > 0) {
+        html += '<div class="card">';
+        html += '<h3>🔧 Vista Técnica (primer escenario):</h3>';
+        html += '<pre>' + JSON.stringify(report.rawData.scenarios[0], null, 2).substring(0, 1000) + '...</pre>';
+        html += '</div>';
+    }
+    
+    results.innerHTML = html;
+}
+</script>
+
+</body>
+</html>
