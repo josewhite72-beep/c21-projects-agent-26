@@ -1,6 +1,6 @@
-const CACHE_NAME = 'c21-projects-v2.1.0';
-const STATIC_CACHE = 'c21-static-v2.1.0';
-const DYNAMIC_CACHE = 'c21-dynamic-v2.1.0';
+const CACHE_NAME = 'c21-projects-v2.2.0';
+const STATIC_CACHE = 'c21-static-v2.2.0';
+const DYNAMIC_CACHE = 'c21-dynamic-v2.2.0';
 
 // Archivos estáticos para cachear en instalación
 const STATIC_FILES = [
